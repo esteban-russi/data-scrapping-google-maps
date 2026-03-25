@@ -1,0 +1,51 @@
+volunteer_id,volunteer_name,business_name,business_address,business_type,latitude,longitude,osm_id,distance_miles
+1,Ruby Eve O’Neill,Revolution,"88-94, Oxford Street, Manchester, M1 5WH",bar,53.473628,-2.2404225,node/30969136,0.01
+1,Ruby Eve O’Neill,Joshua Brooks,"106, Princess Street, Manchester, M1 6NG",bar,53.4742484,-2.23742,node/30969137,0.14
+1,Ruby Eve O’Neill,Tesco Express,"Oxford Road, Manchester, M1 7ED",convenience,53.4720297,-2.2383937,node/258870276,0.14
+1,Ruby Eve O’Neill,Fifth Nightclub,"121, Princess Street, Manchester, M1 7AG",bar,53.4749737,-2.2375899,node/293617257,0.16
+1,Ruby Eve O’Neill,The Flour and Flagon,"Grosvenor Street, Manchester, M1 7HL",pub,53.4705235,-2.2364887,node/249501676,0.27
+1,Ruby Eve O’Neill,The Grosvenor,"Grosvenor Street, Manchester, M1 7DZ",bar,53.4701576,-2.2368846,node/30969134,0.28
+1,Ruby Eve O’Neill,Sandbar,"120, Grosvenor Street, Manchester, M1 7HL",pub,53.4706825,-2.2359568,node/247269405,0.28
+1,Ruby Eve O’Neill,The Old Monkey,"90-92, Portland Street, Manchester, M1 4GX",pub,53.4777123,-2.2401028,node/292093177,0.29
+1,Ruby Eve O’Neill,The Goose,"29, Bloom Street, Manchester, M1 3JE",pub,53.4774432,-2.2373016,node/307987238,0.3
+1,Ruby Eve O’Neill,Peace Garden,"57, Booth Street West, Manchester, M15 6PQ",restaurant,53.4671454,-2.2391457,node/249083228,0.45
+1,Ruby Eve O’Neill,Dimitri's,"1-3, Campfield Avenue Arcade, Manchester, M3 4FH",restaurant,53.4761318,-2.2510278,node/249518315,0.46
+1,Ruby Eve O’Neill,Armenian Taverna,"1-7, Princess Street, Manchester, M2 4DF",restaurant,53.4801096,-2.2447869,node/258871622,0.49
+1,Ruby Eve O’Neill,The Waldorf,"12, Gore Street, Manchester, M1 3AQ",pub,53.4795818,-2.2339421,node/308128518,0.5
+1,Ruby Eve O’Neill,Oxnoble,"71, Liverpool Road, Manchester, M3 4NQ",pub,53.4763399,-2.2539903,node/249515967,0.58
+1,Ruby Eve O’Neill,Katsouris Deli,"113, Deansgate, Manchester, M3 2BQ",cafe,53.4808615,-2.2477797,node/249517666,0.59
+1,Ruby Eve O’Neill,Lammars,"57, Hilton Street, Manchester, M1 2EJ",pub,53.481122,-2.231494,node/307754335,0.65
+1,Ruby Eve O’Neill,Crown & Anchor,"41, Hilton Street, Manchester, M1 2EE",pub,53.4819086,-2.2322038,node/307968585,0.68
+1,Ruby Eve O’Neill,Kro Bar,"325, Oxford Road",pub,53.4648954,-2.2319363,node/30732192,0.7
+1,Ruby Eve O’Neill,Y Club,,fitness_centre,53.4764175,-2.2569673,node/307748177,0.7
+1,Ruby Eve O’Neill,The Northern,Oldham Street,pub,53.483457,-2.2347213,node/308375649,0.73
+1,Ruby Eve O’Neill,Ducie Arms,,pub,53.4631652,-2.2349983,node/30732012,0.75
+1,Ruby Eve O’Neill,Apsley Cottage,"1, Apsley Grove, Manchester, M12 6AW",pub,53.4692966,-2.2215955,node/307535172,0.84
+1,Ruby Eve O’Neill,The Big Hands,,pub,53.4629221,-2.2304056,node/258864504,0.85
+1,Ruby Eve O’Neill,The Crown & Kettle,"2, Oldham Road, Manchester, M4 5FE",pub,53.4848144,-2.232433,node/303811097,0.85
+1,Ruby Eve O’Neill,Mr Egg,,cafe,53.4627645,-2.2302186,node/258864507,0.86
+1,Ruby Eve O’Neill,The Smithfield Market Tavern,"33-37, Swan Street, Manchester, M4 5JZ",pub,53.4853915,-2.2344242,node/308375621,0.86
+1,Ruby Eve O’Neill,The Rose & Monkey Hotel,"31, Swan Street, Manchester, M4 5JZ",pub,53.4853483,-2.2343246,node/308375623,0.86
+1,Ruby Eve O’Neill,Glamorous Chinese Restaurant,,restaurant,53.4869787,-2.22849,node/307753159,1.06
+1,Ruby Eve O’Neill,Marble Arch Inn,"73, Rochdale Road, Manchester, M4 4HY",pub,53.4882145,-2.232339,node/307642219,1.07
+1,Ruby Eve O’Neill,Tesco Express,"257, Upper Brook Street, M13 0HL",convenience,53.4613152,-2.222285,node/301406320,1.14
+1,Ruby Eve O’Neill,Nisa Local,Stockport Road,convenience,53.4658542,-2.216009,node/307498473,1.15
+1,Ruby Eve O’Neill,Tesco Express,"5-6 Wilmslow Park, Wilmslow Road, Manchester, M13 9PD",convenience,53.4586055,-2.2269312,node/301413683,1.18
+1,Ruby Eve O’Neill,The Ford Madox Brown,"1 Wilmslow Park, Wilmslow Road, Manchester, M13 9PD",pub,53.4582074,-2.2266611,node/258869419,1.21
+1,Ruby Eve O’Neill,Live Seafood Ltd,,restaurant,53.4750481,-2.2089251,node/269272691,1.31
+1,Ruby Eve O’Neill,Supporting People In Need,,community_centre,53.4666917,-2.2087854,node/307506029,1.4
+1,Ruby Eve O’Neill,Eastern Pearl,,restaurant,53.4604508,-2.2104472,node/307520138,1.54
+1,Ruby Eve O’Neill,Red Lion,,pub,53.4565562,-2.2157125,node/298655299,1.56
+1,Ruby Eve O’Neill,422 Community Hub and Cafe,"422, Stockport Road, Manchester, M12 4EX",community_centre,53.4602033,-2.2055347,node/307495807,1.72
+1,Ruby Eve O’Neill,Best-One Xpress,,convenience,53.49391,-2.2166661,node/308518401,1.72
+1,Ruby Eve O’Neill,Lahore Stores,,convenience,53.4559168,-2.2102444,node/298387777,1.75
+1,Ruby Eve O’Neill,The Hilary Step,,pub,53.4517267,-2.2694484,node/269080707,1.92
+1,Ruby Eve O’Neill,Oriental Pearl,"271, Great Cheetham Street East, Salford, M7 4UF",restaurant,53.5031044,-2.2547869,node/307776258,2.13
+1,Ruby Eve O’Neill,Spicy Mango,"575A, Ashton New Road, Manchester, M11 4EA",restaurant,53.4834043,-2.1877664,node/269256546,2.29
+1,Ruby Eve O’Neill,Ladybarn Community Centre,,community_centre,53.438107,-2.214489,node/25365167,2.68
+1,Ruby Eve O’Neill,Albert Wilson,Wilmslow Road,pub,53.4344065,-2.2281185,node/268980209,2.76
+1,Ruby Eve O’Neill,The Orion,,pub,53.4333545,-2.2305738,node/269079583,2.81
+1,Ruby Eve O’Neill,Sai Spice,"Mauldeth Road West, Manchester, M21 7SP",restaurant,53.4346515,-2.2647432,node/31257652,2.87
+1,Ruby Eve O’Neill,Village Stores,"114, Barlow Road, Manchester, M19 3EF",convenience,53.4454122,-2.1863322,node/256023463,2.97
+1,Ruby Eve O’Neill,Shell,"423, Barlow Moor Road, Manchester, M21 8ER",fuel,53.4352175,-2.2736626,node/27312661,2.98
+1,Ruby Eve O’Neill,Sun,Wilmslow Road,convenience,53.4308503,-2.2289291,node/275673913,2.99
