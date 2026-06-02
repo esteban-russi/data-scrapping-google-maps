@@ -1,4 +1,4 @@
-"""Configuration constants for the Volunteer ↔ Business Matcher."""
+"""Configuration constants for the Location-Based Organisation Finder."""
 
 # --- Column rename map: raw survey column → clean name ---
 COLUMN_RENAME_MAP: dict[str, str] = {
@@ -117,3 +117,39 @@ INDUSTRY_OSM_MAP: dict[str, list[str]] = {
 # --- Output ---
 OUTPUT_CSV_PATH: str = "data/matches.csv"
 INPUT_CSV_PATH: str = "data/responses.csv"
+
+# --- FindThatCharity API (free, no auth) ---
+FINDTHATCHARITY_RECONCILE_URL: str = "https://findthatcharity.uk/reconcile"
+FINDTHATCHARITY_ORG_URL: str = "https://findthatcharity.uk/orgid/{org_id}.json"
+FINDTHATCHARITY_MAX_RESULTS: int = 25
+
+# Keyword groups for charity search — maps category → search terms
+CHARITY_SEARCH_TERMS: dict[str, list[str]] = {
+    "PTSD & Mental Health Services": [
+        "PTSD",
+        "post traumatic stress",
+        "mental health",
+        "trauma recovery",
+        "counselling veterans",
+    ],
+    "Charities & NGOs": [
+        "charity",
+        "voluntary organisation",
+    ],
+    "Community Groups & Centres": [
+        "community group",
+        "community centre",
+        "neighbourhood support",
+    ],
+    "Social Services": [
+        "social services",
+        "welfare support",
+        "homelessness",
+        "housing support",
+    ],
+    "Health & Wellness": [
+        "health",
+        "wellness",
+        "wellbeing",
+    ],
+}

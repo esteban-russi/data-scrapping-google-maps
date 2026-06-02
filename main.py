@@ -28,6 +28,7 @@ import requests
 from geopy.distance import geodesic
 
 from config import (
+    CHARITY_SEARCH_TERMS,
     COLUMN_RENAME_MAP,
     COLUMNS_TO_KEEP,
     DEFAULT_RADIUS_MILES,
@@ -41,6 +42,7 @@ from config import (
     MAX_RESULTS_PER_INDUSTRY,
     POSTCODES_IO_BULK_URL,
 )
+from charity_search import search_charities
 
 logging.basicConfig(
     level=logging.INFO,
@@ -453,6 +455,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Category to search for (repeatable). Use --list-categories to see options.",
     )
     q.add_argument("--output", "-o", default=OUTPUT_CSV_PATH, help="Output CSV path (default: %(default)s).")
+    q.add_argument(
+        "--source", "-s",
+        choices=["osm", "charities", "both"],
+        default="both",
+        help="Data source: 'osm' (OpenStreetMap), 'charities' (FindThatCharity), or 'both' (default: %(default)s).",
+    )
 
     # --- csv subcommand ---
     c = subs.add_parser("csv", help="Batch search from a volunteer CSV.")
@@ -464,12 +472,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 def list_categories() -> None:
     """Print available categories and their OSM tags."""
-    print("\nAvailable categories:")
+    print("\nAvailable categories (OSM / OpenStreetMap):")
     print("-" * 50)
     for i, (name, tags) in enumerate(INDUSTRY_OSM_MAP.items(), 1):
         print(f"  {i:2d}. {name}")
         for tag in tags:
             print(f"        └─ {tag}")
+
+    print("\nAvailable categories (Charity Register):")
+    print("-" * 50)
+    for i, (name, terms) in enumerate(CHARITY_SEARCH_TERMS.items(), 1):
+        print(f"  {i:2d}. {name}")
+        for term in terms:
+            print(f"        └─ \"{term}\"")
     print()
 
 
@@ -487,17 +502,40 @@ def main() -> None:
         sys.exit(0)
 
     if args.command == "query":
-        results = search_location(
-            postcode=args.postcode,
-            radius_miles=args.radius,
-            categories=args.category,
-        )
-        if results.empty:
+        dfs: list[pd.DataFrame] = []
+
+        if args.source in ("osm", "both"):
+            osm_results = search_location(
+                postcode=args.postcode,
+                radius_miles=args.radius,
+                categories=args.category,
+            )
+            if not osm_results.empty:
+                osm_results.insert(0, "source", "osm")
+                dfs.append(osm_results)
+
+        if args.source in ("charities", "both"):
+            charity_results = search_charities(
+                postcode=args.postcode,
+                radius_miles=args.radius,
+                categories=args.category,
+            )
+            if not charity_results.empty:
+                charity_results.insert(0, "source", "charity_register")
+                dfs.append(charity_results)
+
+        if not dfs:
             logger.warning("No results found.")
             sys.exit(1)
+
+        results = pd.concat(dfs, ignore_index=True)
         export_csv(results, args.output)
         print(f"\n{len(results)} results saved to {args.output}")
-        print(results[["business_name", "business_type", "distance_miles"]].to_string(index=False))
+
+        # Print summary based on available columns
+        name_col = "charity_name" if "charity_name" in results.columns else "business_name"
+        summary_cols = [c for c in ["source", name_col, "business_type", "org_types", "distance_miles"] if c in results.columns]
+        print(results[summary_cols].to_string(index=False))
 
     elif args.command == "csv":
         df = load_volunteers(args.input)
