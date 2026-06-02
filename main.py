@@ -1,13 +1,25 @@
 """
-Volunteer ↔ Business Matcher
-=============================
-Reads volunteer survey data, geocodes UK postcodes, searches for nearby
-businesses via the free Overpass API (OpenStreetMap), and exports matches
-to CSV and optionally Google Sheets.
+Location-Based Organisation Finder
+===================================
+Searches for nearby organisations (charities, CICs, community groups,
+businesses) by postcode + radius + category using the Overpass API
+(OpenStreetMap).  Also supports batch mode from a CSV of volunteers.
+
+Usage:
+    # Single query
+    python main.py query --postcode "M1 5AA" --radius 5 --category "PTSD & Mental Health Services"
+
+    # Batch from CSV
+    python main.py csv --input data/responses.csv --output data/matches.csv
+
+    # List available categories
+    python main.py --list-categories
 """
 
+import argparse
 import logging
 import re
+import sys
 import time
 from pathlib import Path
 
@@ -28,8 +40,6 @@ from config import (
     OVERPASS_TIMEOUT,
     MAX_RESULTS_PER_INDUSTRY,
     POSTCODES_IO_BULK_URL,
-    GOOGLE_SHEETS_CREDENTIALS_FILE,
-    GOOGLE_SHEETS_SPREADSHEET_NAME,
 )
 
 logging.basicConfig(
@@ -228,6 +238,98 @@ def extract_business_info(element: dict) -> dict | None:
     }
 
 
+# ---------------------------------------------------------------------------
+# Phase 4a: Resolve categories → OSM tags
+# ---------------------------------------------------------------------------
+
+def resolve_osm_tags(categories: list[str]) -> list[str]:
+    """Resolve category names to OSM tags using fuzzy matching.
+
+    Each category is matched against INDUSTRY_OSM_MAP keys.  Unmatched
+    categories are logged as warnings.
+    """
+    osm_tags: list[str] = []
+    for category in categories:
+        matched = False
+        for config_key, tags in INDUSTRY_OSM_MAP.items():
+            if (
+                category.lower() in config_key.lower()
+                or config_key.lower() in category.lower()
+            ):
+                osm_tags.extend(tags)
+                matched = True
+                break
+        if not matched:
+            logger.warning("No OSM mapping for category: %s", category)
+    return list(dict.fromkeys(osm_tags))  # deduplicate, preserve order
+
+
+# ---------------------------------------------------------------------------
+# Phase 4b: Single-location search
+# ---------------------------------------------------------------------------
+
+def search_location(
+    postcode: str,
+    radius_miles: int,
+    categories: list[str],
+) -> pd.DataFrame:
+    """Search for organisations near a single postcode.
+
+    Args:
+        postcode: UK postcode (e.g. 'M1 5AA').
+        radius_miles: Search radius in miles.
+        categories: List of category names from INDUSTRY_OSM_MAP.
+
+    Returns:
+        DataFrame of matching organisations with name, address, type,
+        coordinates, and distance.
+    """
+    postcode = normalize_postcode(postcode)
+    coords = geocode_postcodes([postcode])
+    if postcode not in coords:
+        logger.error("Could not geocode postcode: %s", postcode)
+        return pd.DataFrame()
+
+    lat, lon = coords[postcode]
+    radius_m = radius_miles * MILES_TO_METERS
+
+    osm_tags = resolve_osm_tags(categories)
+    if not osm_tags:
+        logger.error("No OSM tags resolved for categories: %s", categories)
+        return pd.DataFrame()
+
+    query = build_overpass_query(lat, lon, radius_m, osm_tags)
+    logger.info(
+        "Querying Overpass for %s (%.0fm, %d tag groups)…",
+        postcode, radius_m, len(osm_tags),
+    )
+    try:
+        elements = query_overpass(query)
+    except requests.RequestException as exc:
+        logger.error("Overpass query failed for %s: %s", postcode, exc)
+        return pd.DataFrame()
+
+    results: list[dict] = []
+    for el in elements:
+        info = extract_business_info(el)
+        if not info:
+            continue
+        dist = geodesic((lat, lon), (info["latitude"], info["longitude"])).miles
+        if dist <= radius_miles:
+            info["distance_miles"] = round(dist, 2)
+            results.append(info)
+
+    df = pd.DataFrame(results)
+    if not df.empty:
+        df = df.sort_values("distance_miles").reset_index(drop=True)
+    logger.info("Found %d results within %d miles of %s", len(df), radius_miles, postcode)
+    return df
+
+
+# ---------------------------------------------------------------------------
+# Phase 4c: Batch search (CSV volunteers)
+# ---------------------------------------------------------------------------
+
 def search_businesses(
     coords: dict[str, tuple[float, float]],
     df: pd.DataFrame,
@@ -237,8 +339,6 @@ def search_businesses(
     Deduplicates API calls when volunteers share the same postcode/radius/industry.
     Returns a DataFrame of all (volunteer, business) matches.
     """
-    # Build unique query keys to avoid duplicate API calls
-    # Key: (postcode, radius_miles, frozenset(osm_tags))
     cache: dict[tuple, list[dict]] = {}
     all_matches: list[dict] = []
 
@@ -255,31 +355,13 @@ def search_businesses(
         lat, lon = coords[pc]
         radius_m = row["radius_miles"] * MILES_TO_METERS
 
-        # Resolve OSM tags for this volunteer's industries
-        industries = row["target_industries"]
-        osm_tags: list[str] = []
-        for industry in industries:
-            matched = False
-            for config_key, tags in INDUSTRY_OSM_MAP.items():
-                # Fuzzy match: check if the volunteer's industry text is a
-                # substring of (or equals) the config key, or vice-versa
-                if (
-                    industry.lower() in config_key.lower()
-                    or config_key.lower() in industry.lower()
-                ):
-                    osm_tags.extend(tags)
-                    matched = True
-                    break
-            if not matched:
-                logger.warning("No OSM mapping for industry: %s", industry)
-
+        osm_tags = resolve_osm_tags(row["target_industries"])
         if not osm_tags:
             logger.warning(
                 "No OSM tags resolved for volunteer %s", row["volunteer_name"]
             )
             continue
 
-        osm_tags = list(dict.fromkeys(osm_tags))  # deduplicate, preserve order
         cache_key = (pc, row["radius_miles"], frozenset(osm_tags))
 
         if cache_key not in cache:
@@ -308,7 +390,6 @@ def search_businesses(
             businesses = cache[cache_key]
             logger.info("Cache hit for %s", pc)
 
-        # Calculate exact distance and filter
         for biz in businesses:
             dist_miles = geodesic(
                 (lat, lon), (biz["latitude"], biz["longitude"])
@@ -343,50 +424,53 @@ def export_csv(df: pd.DataFrame, path: str = OUTPUT_CSV_PATH) -> None:
     logger.info("Saved %d rows to %s", len(df), path)
 
 
-def export_google_sheets(df: pd.DataFrame) -> None:
-    """Push the matches DataFrame to a Google Sheet.
 
-    Requires a service-account credentials JSON file and the google-auth +
-    gspread packages.  If credentials are missing, logs a warning and skips.
-    """
-    creds_path = Path(GOOGLE_SHEETS_CREDENTIALS_FILE)
-    if not creds_path.exists():
-        logger.warning(
-            "Google Sheets credentials not found at %s — skipping Sheets export. "
-            "See README for setup instructions.",
-            creds_path,
-        )
-        return
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
 
-    try:
-        import gspread
-        from google.oauth2.service_account import Credentials
+def build_parser() -> argparse.ArgumentParser:
+    """Build the argument parser with 'query' and 'csv' subcommands."""
+    parser = argparse.ArgumentParser(
+        description="Search for nearby organisations by postcode, radius, and category.",
+    )
+    parser.add_argument(
+        "--list-categories",
+        action="store_true",
+        help="List all available search categories and exit.",
+    )
 
-        scopes = [
-            "https://www.googleapis.com/auth/spreadsheets",
-            "https://www.googleapis.com/auth/drive",
-        ]
-        creds = Credentials.from_service_account_file(str(creds_path), scopes=scopes)
-        gc = gspread.authorize(creds)
+    subs = parser.add_subparsers(dest="command")
 
-        try:
-            sh = gc.open(GOOGLE_SHEETS_SPREADSHEET_NAME)
-        except gspread.SpreadsheetNotFound:
-            sh = gc.create(GOOGLE_SHEETS_SPREADSHEET_NAME)
-            logger.info("Created new spreadsheet: %s", GOOGLE_SHEETS_SPREADSHEET_NAME)
+    # --- query subcommand ---
+    q = subs.add_parser("query", help="Search from a single postcode.")
+    q.add_argument("--postcode", "-p", required=True, help="UK postcode (e.g. 'M1 5AA').")
+    q.add_argument("--radius", "-r", type=int, default=DEFAULT_RADIUS_MILES, help="Radius in miles (default: %(default)s).")
+    q.add_argument(
+        "--category", "-c",
+        action="append",
+        required=True,
+        help="Category to search for (repeatable). Use --list-categories to see options.",
+    )
+    q.add_argument("--output", "-o", default=OUTPUT_CSV_PATH, help="Output CSV path (default: %(default)s).")
 
-        worksheet = sh.sheet1
-        worksheet.clear()
-        worksheet.update(
-            [df.columns.tolist()] + df.astype(str).values.tolist()
-        )
-        logger.info(
-            "Exported %d rows to Google Sheet '%s'",
-            len(df),
-            GOOGLE_SHEETS_SPREADSHEET_NAME,
-        )
-    except Exception as exc:
-        logger.error("Google Sheets export failed: %s", exc)
+    # --- csv subcommand ---
+    c = subs.add_parser("csv", help="Batch search from a volunteer CSV.")
+    c.add_argument("--input", "-i", default=INPUT_CSV_PATH, help="Input CSV path (default: %(default)s).")
+    c.add_argument("--output", "-o", default=OUTPUT_CSV_PATH, help="Output CSV path (default: %(default)s).")
+
+    return parser
+
+
+def list_categories() -> None:
+    """Print available categories and their OSM tags."""
+    print("\nAvailable categories:")
+    print("-" * 50)
+    for i, (name, tags) in enumerate(INDUSTRY_OSM_MAP.items(), 1):
+        print(f"  {i:2d}. {name}")
+        for tag in tags:
+            print(f"        └─ {tag}")
+    print()
 
 
 # ---------------------------------------------------------------------------
@@ -394,27 +478,41 @@ def export_google_sheets(df: pd.DataFrame) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    """Run the full volunteer ↔ business matching pipeline."""
-    # 1. Load & preprocess
-    df = load_volunteers()
-    logger.info("Columns: %s", list(df.columns))
-    logger.info("Sample:\n%s", df.head(2).to_string())
+    """Entry point: dispatch to query or csv subcommand."""
+    parser = build_parser()
+    args = parser.parse_args()
 
-    # 2. Geocode
-    coords = geocode_postcodes(df["postcode"].tolist())
+    if args.list_categories:
+        list_categories()
+        sys.exit(0)
 
-    # 3. Search & match
-    matches = search_businesses(coords, df)
+    if args.command == "query":
+        results = search_location(
+            postcode=args.postcode,
+            radius_miles=args.radius,
+            categories=args.category,
+        )
+        if results.empty:
+            logger.warning("No results found.")
+            sys.exit(1)
+        export_csv(results, args.output)
+        print(f"\n{len(results)} results saved to {args.output}")
+        print(results[["business_name", "business_type", "distance_miles"]].to_string(index=False))
 
-    if matches.empty:
-        logger.warning("No matches found. Exiting.")
-        return
+    elif args.command == "csv":
+        df = load_volunteers(args.input)
+        logger.info("Columns: %s", list(df.columns))
+        coords = geocode_postcodes(df["postcode"].tolist())
+        matches = search_businesses(coords, df)
+        if matches.empty:
+            logger.warning("No matches found.")
+            sys.exit(1)
+        export_csv(matches, args.output)
+        logger.info("Done! %d matches written.", len(matches))
 
-    # 4. Export
-    export_csv(matches)
-    export_google_sheets(matches)
-
-    logger.info("Done! %d matches written.", len(matches))
+    else:
+        parser.print_help()
+        sys.exit(1)
 
 
 if __name__ == "__main__":
