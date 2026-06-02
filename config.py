@@ -85,11 +85,34 @@ INDUSTRY_OSM_MAP: dict[str, list[str]] = {
         "office=ngo",
         "office=association",
     ],
+    "Charities & NGOs": [
+        "office=charity",
+        "office=ngo",
+        "office=association",
+        "office=foundation",
+    ],
+    "Community Groups & Centres": [
+        "amenity=community_centre",
+        "amenity=social_facility",
+        "amenity=social_centre",
+        "office=association",
+    ],
+    "PTSD & Mental Health Services": [
+        "healthcare=psychotherapist",
+        "healthcare=counselling",
+        "amenity=social_facility",
+        "healthcare=centre",
+        "healthcare=clinic",
+        "office=charity",
+        "office=therapist",
+    ],
+    "Social Services": [
+        "office=social_services",
+        "amenity=social_facility",
+        "office=charity",
+        "office=ngo",
+    ],
 }
-
-# --- Google Sheets (optional) ---
-GOOGLE_SHEETS_CREDENTIALS_FILE: str = "credentials.json"
-GOOGLE_SHEETS_SPREADSHEET_NAME: str = "Volunteer Business Matches"
 
 # --- Output ---
 OUTPUT_CSV_PATH: str = "data/matches.csv"
