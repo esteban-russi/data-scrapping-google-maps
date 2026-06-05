@@ -22,7 +22,7 @@ POSTCODES_IO_BULK_URL: str = "https://api.postcodes.io/postcodes"
 
 # --- Overpass API ---
 OVERPASS_API_URL: str = "https://overpass-api.de/api/interpreter"
-OVERPASS_RATE_LIMIT_SECONDS: float = 1.0
+OVERPASS_RATE_LIMIT_SECONDS: float = 2.0
 OVERPASS_TIMEOUT: int = 30
 MAX_RESULTS_PER_INDUSTRY: int = 50
 
@@ -121,7 +121,7 @@ INPUT_CSV_PATH: str = "data/responses.csv"
 # --- FindThatCharity API (free, no auth) ---
 FINDTHATCHARITY_RECONCILE_URL: str = "https://findthatcharity.uk/reconcile"
 FINDTHATCHARITY_ORG_URL: str = "https://findthatcharity.uk/orgid/{org_id}.json"
-FINDTHATCHARITY_MAX_RESULTS: int = 25
+FINDTHATCHARITY_MAX_RESULTS: int = 100
 
 # Keyword groups for charity search — maps category → search terms
 CHARITY_SEARCH_TERMS: dict[str, list[str]] = {
@@ -131,6 +131,13 @@ CHARITY_SEARCH_TERMS: dict[str, list[str]] = {
         "mental health",
         "trauma recovery",
         "counselling veterans",
+        "anxiety depression",
+        "psychological therapy",
+        "veterans support",
+        "mental wellbeing",
+        "crisis support",
+        "bereavement counselling",
+        "emotional support",
     ],
     "Charities & NGOs": [
         "charity",

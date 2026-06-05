@@ -185,15 +185,33 @@ def build_overpass_query(
     )
 
 
-def query_overpass(query: str) -> list[dict]:
-    """Execute an Overpass query and return the list of elements."""
-    resp = requests.post(
-        OVERPASS_API_URL,
-        data={"data": query},
-        timeout=OVERPASS_TIMEOUT + 10,
-    )
-    resp.raise_for_status()
-    return resp.json().get("elements", [])
+def query_overpass(query: str, max_retries: int = 3) -> list[dict]:
+    """Execute an Overpass query and return the list of elements.
+
+    Retries with exponential backoff on transient errors (406, 429, 5xx).
+    """
+    headers = {"User-Agent": "HomelessHouseOrgFinder/1.0"}
+    for attempt in range(max_retries):
+        try:
+            resp = requests.post(
+                OVERPASS_API_URL,
+                data={"data": query},
+                headers=headers,
+                timeout=OVERPASS_TIMEOUT + 10,
+            )
+            resp.raise_for_status()
+            return resp.json().get("elements", [])
+        except requests.RequestException as exc:
+            status = getattr(exc.response, "status_code", None) if hasattr(exc, "response") else None
+            if status in (406, 429, 504) and attempt < max_retries - 1:
+                wait = (attempt + 1) * 5
+                logger.warning(
+                    "Overpass returned %s, retrying in %ds (attempt %d/%d)",
+                    status, wait, attempt + 1, max_retries,
+                )
+                time.sleep(wait)
+            else:
+                raise
 
 
 def extract_business_info(element: dict) -> dict | None:
@@ -300,16 +318,25 @@ def search_location(
         logger.error("No OSM tags resolved for categories: %s", categories)
         return pd.DataFrame()
 
-    query = build_overpass_query(lat, lon, radius_m, osm_tags)
-    logger.info(
-        "Querying Overpass for %s (%.0fm, %d tag groups)…",
-        postcode, radius_m, len(osm_tags),
-    )
-    try:
-        elements = query_overpass(query)
-    except requests.RequestException as exc:
-        logger.error("Overpass query failed for %s: %s", postcode, exc)
-        return pd.DataFrame()
+    # Query Overpass per-tag to avoid 406 on large unions
+    elements: list[dict] = []
+    seen_ids: set[str] = set()
+    for tag in osm_tags:
+        query = build_overpass_query(lat, lon, radius_m, [tag])
+        logger.info(
+            "Querying Overpass for %s — tag %s (%.0fm)…",
+            postcode, tag, radius_m,
+        )
+        try:
+            batch = query_overpass(query)
+            for el in batch:
+                uid = f"{el['type']}/{el['id']}"
+                if uid not in seen_ids:
+                    seen_ids.add(uid)
+                    elements.append(el)
+        except requests.RequestException as exc:
+            logger.error("Overpass query failed for %s [%s]: %s", postcode, tag, exc)
+        time.sleep(OVERPASS_RATE_LIMIT_SECONDS)
 
     results: list[dict] = []
     for el in elements:
@@ -367,19 +394,25 @@ def search_businesses(
         cache_key = (pc, row["radius_miles"], frozenset(osm_tags))
 
         if cache_key not in cache:
-            query = build_overpass_query(lat, lon, radius_m, osm_tags)
-            logger.info(
-                "Querying Overpass for %s (%.0fm, %d tag groups)…",
-                pc,
-                radius_m,
-                len(osm_tags),
-            )
-            try:
-                elements = query_overpass(query)
-            except requests.RequestException as exc:
-                logger.error("Overpass query failed for %s: %s", pc, exc)
-                elements = []
-            time.sleep(OVERPASS_RATE_LIMIT_SECONDS)
+            # Query Overpass per-tag to avoid 406 on large unions
+            elements: list[dict] = []
+            seen_el_ids: set[str] = set()
+            for tag in osm_tags:
+                query = build_overpass_query(lat, lon, radius_m, [tag])
+                logger.info(
+                    "Querying Overpass for %s — tag %s (%.0fm)…",
+                    pc, tag, radius_m,
+                )
+                try:
+                    batch = query_overpass(query)
+                    for el in batch:
+                        uid = f"{el['type']}/{el['id']}"
+                        if uid not in seen_el_ids:
+                            seen_el_ids.add(uid)
+                            elements.append(el)
+                except requests.RequestException as exc:
+                    logger.error("Overpass query failed for %s [%s]: %s", pc, tag, exc)
+                time.sleep(OVERPASS_RATE_LIMIT_SECONDS)
 
             businesses: list[dict] = []
             for el in elements:
