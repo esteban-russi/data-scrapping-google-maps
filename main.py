@@ -14,6 +14,7 @@ import argparse
 import logging
 import re
 import time
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -526,10 +527,6 @@ def main() -> None:
         "--industry", "-i", action="append", default=None,
         help="Industry to search for (can be repeated). If omitted, searches all."
     )
-    search_parser.add_argument(
-        "--output", "-o", default=None,
-        help="Output CSV path (optional, prints to console if omitted)"
-    )
 
     # 'batch' subcommand — original CSV pipeline
     subparsers.add_parser(
@@ -541,13 +538,31 @@ def main() -> None:
     if args.command == "search":
         results = search_single(args.postcode, args.radius, args.industry)
         if results.empty:
-            print("No businesses found.")
+            print("\nNo businesses found.")
         else:
-            if args.output:
-                export_csv(results, args.output)
-                print(f"Results saved to {args.output}")
-            else:
-                print(results.to_string(index=False))
+            # Auto-save to outputs/ folder
+            pc_slug = normalize_postcode(args.postcode).replace(" ", "").lower()
+            industry_slug = "_".join(i.lower().replace(" ", "-") for i in args.industry) if args.industry else "all"
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"{pc_slug}_{args.radius}mi_{industry_slug}_{timestamp}.csv"
+            output_dir = Path("outputs")
+            output_dir.mkdir(exist_ok=True)
+            output_path = output_dir / filename
+            results.to_csv(output_path, index=False)
+
+            # Print summary and head
+            print("\n" + "=" * 60)
+            print("  SEARCH RESULTS SUMMARY")
+            print("=" * 60)
+            print(f"  Postcode:    {normalize_postcode(args.postcode)}")
+            print(f"  Radius:      {args.radius} miles")
+            print(f"  Industries:  {', '.join(args.industry) if args.industry else 'All'}")
+            print(f"  Results:     {len(results)} businesses found")
+            print(f"  Saved to:    {output_path}")
+            print("=" * 60)
+            print(f"\n  Top {min(10, len(results))} results:\n")
+            print(results.head(10).to_string(index=False))
+            print()
     elif args.command == "batch":
         main_batch()
     else:
