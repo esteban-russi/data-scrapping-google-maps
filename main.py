@@ -4,8 +4,13 @@ Volunteer ↔ Business Matcher
 Reads volunteer survey data, geocodes UK postcodes, searches for nearby
 businesses via the free Overpass API (OpenStreetMap), and exports matches
 to CSV and optionally Google Sheets.
+
+Can also be run standalone:
+    python main.py search --postcode "SW1A 1AA" --radius 3
+    python main.py search --postcode "SW1A 1AA" --radius 5 --industry "Hospitality"
 """
 
+import argparse
 import logging
 import re
 import time
@@ -393,8 +398,81 @@ def export_google_sheets(df: pd.DataFrame) -> None:
 # Main
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    """Run the full volunteer ↔ business matching pipeline."""
+def search_single(postcode: str, radius_miles: int, industries: list[str] | None = None) -> pd.DataFrame:
+    """Search businesses near a single postcode.
+
+    Args:
+        postcode: UK postcode to search around.
+        radius_miles: Search radius in miles.
+        industries: Optional list of industry keywords to filter by.
+                    If None, searches all configured industries.
+
+    Returns:
+        DataFrame of matching businesses.
+    """
+    pc = normalize_postcode(postcode)
+    coords = geocode_postcodes([pc])
+
+    if pc not in coords:
+        logger.error("Could not geocode postcode: %s", pc)
+        return pd.DataFrame()
+
+    lat, lon = coords[pc]
+    radius_m = radius_miles * MILES_TO_METERS
+
+    # Resolve OSM tags
+    osm_tags: list[str] = []
+    if industries:
+        for industry in industries:
+            matched = False
+            for config_key, tags in INDUSTRY_OSM_MAP.items():
+                if (
+                    industry.lower() in config_key.lower()
+                    or config_key.lower() in industry.lower()
+                ):
+                    osm_tags.extend(tags)
+                    matched = True
+                    break
+            if not matched:
+                logger.warning("No OSM mapping for industry: %s", industry)
+    else:
+        # Search all industries
+        for tags in INDUSTRY_OSM_MAP.values():
+            osm_tags.extend(tags)
+
+    osm_tags = list(dict.fromkeys(osm_tags))  # deduplicate
+
+    if not osm_tags:
+        logger.error("No OSM tags resolved.")
+        return pd.DataFrame()
+
+    query = build_overpass_query(lat, lon, radius_m, osm_tags)
+    logger.info("Querying Overpass for %s (%.0fm, %d tag groups)…", pc, radius_m, len(osm_tags))
+
+    try:
+        elements = query_overpass(query)
+    except requests.RequestException as exc:
+        logger.error("Overpass query failed: %s", exc)
+        return pd.DataFrame()
+
+    results: list[dict] = []
+    for el in elements:
+        info = extract_business_info(el)
+        if info:
+            dist_miles = geodesic((lat, lon), (info["latitude"], info["longitude"])).miles
+            if dist_miles <= radius_miles:
+                info["distance_miles"] = round(dist_miles, 2)
+                results.append(info)
+
+    df = pd.DataFrame(results)
+    if not df.empty:
+        df = df.sort_values("distance_miles").reset_index(drop=True)
+    logger.info("Found %d businesses within %d miles of %s", len(df), radius_miles, pc)
+    return df
+
+
+def main_batch() -> None:
+    """Run the full volunteer ↔ business matching pipeline from CSV."""
     # 1. Load & preprocess
     df = load_volunteers()
     logger.info("Columns: %s", list(df.columns))
@@ -415,6 +493,56 @@ def main() -> None:
     export_google_sheets(matches)
 
     logger.info("Done! %d matches written.", len(matches))
+
+
+def main() -> None:
+    """CLI entry point."""
+    parser = argparse.ArgumentParser(
+        description="Search for businesses near a UK postcode using OpenStreetMap data."
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    # 'search' subcommand — single postcode lookup
+    search_parser = subparsers.add_parser(
+        "search", help="Search businesses near a postcode"
+    )
+    search_parser.add_argument(
+        "--postcode", "-p", required=True, help="UK postcode to search around"
+    )
+    search_parser.add_argument(
+        "--radius", "-r", type=int, default=DEFAULT_RADIUS_MILES,
+        help=f"Search radius in miles (default: {DEFAULT_RADIUS_MILES})"
+    )
+    search_parser.add_argument(
+        "--industry", "-i", action="append", default=None,
+        help="Industry to search for (can be repeated). If omitted, searches all."
+    )
+    search_parser.add_argument(
+        "--output", "-o", default=None,
+        help="Output CSV path (optional, prints to console if omitted)"
+    )
+
+    # 'batch' subcommand — original CSV pipeline
+    subparsers.add_parser(
+        "batch", help="Run the full batch pipeline from volunteer CSV"
+    )
+
+    args = parser.parse_args()
+
+    if args.command == "search":
+        results = search_single(args.postcode, args.radius, args.industry)
+        if results.empty:
+            print("No businesses found.")
+        else:
+            if args.output:
+                export_csv(results, args.output)
+                print(f"Results saved to {args.output}")
+            else:
+                print(results.to_string(index=False))
+    elif args.command == "batch":
+        main_batch()
+    else:
+        parser.print_help()
 
 
 if __name__ == "__main__":
