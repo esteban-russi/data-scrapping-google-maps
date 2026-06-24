@@ -184,7 +184,6 @@ def build_overpass_query(
         f"out center body {MAX_RESULTS_PER_INDUSTRY};"
     )
 
-
 def query_overpass(query: str, max_retries: int = 3) -> list[dict]:
     """Execute an Overpass query and return the list of elements.
 
@@ -252,6 +251,9 @@ def extract_business_info(element: dict) -> dict | None:
         "business_name": name,
         "business_address": address,
         "business_type": btype,
+        "phone": tags.get("phone") or tags.get("contact:phone") or "",
+        "email": tags.get("email") or tags.get("contact:email") or "",
+        "website": tags.get("website") or tags.get("contact:website") or "",
         "latitude": lat,
         "longitude": lon,
         "osm_id": f"{element['type']}/{element['id']}",

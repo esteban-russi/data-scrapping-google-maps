@@ -154,6 +154,8 @@ def search_charities(
             ])
         )
         cand["url"] = detail.get("url", "")
+        cand["phone"] = detail.get("telephone", "") or ""
+        cand["email"] = detail.get("email", "") or ""
         cand["postcode"] = charity_pc
         cand["active"] = detail.get("active", False)
         cand["latest_income"] = detail.get("latestIncome")
@@ -198,7 +200,9 @@ def search_charities(
                     "address": cand["address"],
                     "org_types": ", ".join(cand["org_types"]),
                     "active": cand["active"],
-                    "url": cand["url"],
+                    "phone": cand["phone"],
+                    "email": cand["email"],
+                    "website": cand["url"],
                     "latest_income": cand["latest_income"],
                     "latitude": coord[0],
                     "longitude": coord[1],
