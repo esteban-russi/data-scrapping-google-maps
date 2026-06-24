@@ -22,8 +22,8 @@ POSTCODES_IO_BULK_URL: str = "https://api.postcodes.io/postcodes"
 
 # --- Overpass API ---
 OVERPASS_API_URL: str = "https://overpass-api.de/api/interpreter"
-OVERPASS_RATE_LIMIT_SECONDS: float = 1.0
-OVERPASS_TIMEOUT: int = 30
+OVERPASS_RATE_LIMIT_SECONDS: float = 2.0
+OVERPASS_TIMEOUT: int = 60
 MAX_RESULTS_PER_INDUSTRY: int = 50
 
 # Miles ↔ Meters conversion

@@ -167,14 +167,14 @@ def build_overpass_query(
             filt = f'["{key}"]'
         else:
             filt = f'["{key}"="{value}"]'
-        unions.append(f"  node{filt}(around:{radius_m},{lat},{lon});")
-        unions.append(f"  way{filt}(around:{radius_m},{lat},{lon});")
+        unions.append(f"  node{filt}(around:{radius_m:.0f},{lat},{lon});")
+        unions.append(f"  way{filt}(around:{radius_m:.0f},{lat},{lon});")
 
     body = "\n".join(unions)
     return (
         f"[out:json][timeout:{OVERPASS_TIMEOUT}];\n"
         f"(\n{body}\n);\n"
-        f"out center body {MAX_RESULTS_PER_INDUSTRY};"
+        f"out center {MAX_RESULTS_PER_INDUSTRY};"
     )
 
 
@@ -183,6 +183,7 @@ def query_overpass(query: str) -> list[dict]:
     resp = requests.post(
         OVERPASS_API_URL,
         data={"data": query},
+        headers={"Accept": "*/*", "User-Agent": "VolunteerMatcher/1.0"},
         timeout=OVERPASS_TIMEOUT + 10,
     )
     resp.raise_for_status()
@@ -446,14 +447,22 @@ def search_single(postcode: str, radius_miles: int, industries: list[str] | None
         logger.error("No OSM tags resolved.")
         return pd.DataFrame()
 
-    query = build_overpass_query(lat, lon, radius_m, osm_tags)
-    logger.info("Querying Overpass for %s (%.0fm, %d tag groups)…", pc, radius_m, len(osm_tags))
-
-    try:
-        elements = query_overpass(query)
-    except requests.RequestException as exc:
-        logger.error("Overpass query failed: %s", exc)
-        return pd.DataFrame()
+    # Batch tags into groups of 10 to avoid Overpass timeouts
+    BATCH_SIZE = 10
+    elements: list[dict] = []
+    for i in range(0, len(osm_tags), BATCH_SIZE):
+        batch = osm_tags[i : i + BATCH_SIZE]
+        query = build_overpass_query(lat, lon, radius_m, batch)
+        logger.info(
+            "Querying Overpass for %s (%.0fm, tags %d–%d of %d)…",
+            pc, radius_m, i + 1, min(i + BATCH_SIZE, len(osm_tags)), len(osm_tags),
+        )
+        try:
+            elements.extend(query_overpass(query))
+        except requests.RequestException as exc:
+            logger.error("Overpass query failed for batch %d: %s", i // BATCH_SIZE + 1, exc)
+        if i + BATCH_SIZE < len(osm_tags):
+            time.sleep(OVERPASS_RATE_LIMIT_SECONDS)
 
     results: list[dict] = []
     for el in elements:
